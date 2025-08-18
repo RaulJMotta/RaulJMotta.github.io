@@ -61,6 +61,11 @@
       }
 
       function styleFeature(feature) {
+        // Pega o valor da propriedade
+        const indexValue = feature.properties.WALK_INDEX;
+
+        // Imprime no console para você ver o que está acontecendo
+        console.log("Propriedade WALK_INDEX:", indexValue, "| Tipo:", typeof indexValue)
         return {
           fillColor: getColor(Number(feature.properties.WALK_INDEX)),
           weight: 1,
