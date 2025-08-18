@@ -61,8 +61,6 @@
       }
 
       function styleFeature(feature) {
-        const valor = feature.properties.WALK_INDEX; // ajuste o nome se for diferente
-        console.log("Valor do índice:", valor);  // <-- debug no console
         return {
           fillColor: getColor(Number(feature.properties.WALK_INDEX)),
           weight: 1,
