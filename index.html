@@ -25,5 +25,92 @@
       .legend .bar { height: 14px; width: 260px; display: flex; margin: 6px 0 4px; border-radius: 4px; overflow: hidden; }
       .legend .bar span { flex: 1; display: block; }
       .legend .s1 { background:#d73027; } /* Q1 */
-      .legend .s2 { background:#
+      .legend .s2 { background:#fdae61; } /* Q2 */
+      .legend .s3 { background:#31a354; } /* Q3 */
+      .legend .s4 { background:#006837; } /* Q4 */
+      .legend .ticks { width: 260px; display:flex; justify-content:space-between; }
+      .legend .ticks span { text-align:center; width: 0; transform: translateX(-50%); }
+      .legend small { color:#666; }
+    </style>
+  </head>
+  <body>
+    <div id="controls">
+      <label for="atributo">Mostrar no popup:</label>
+      <select id="atributo">
+        <option value="WALK_INDEX">ÍNDICE</option>
+        <option value="NOISE">BARULHO</option>
+        <option value="SPEED">VELOCIDADE</option>
+      </select>
+    </div>
 
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+      var map = L.map("map").setView([-15.8, -47.9], 4);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
+      // Função de cor fixa para o índice
+      function getColor(d) {
+        return d > 0.75 ? '#006837' :  // Q4
+               d > 0.50 ? '#31a354' :  // Q3
+               d > 0.25 ? '#fdae61' :  // Q2
+                          '#d73027';   // Q1
+      }
+
+      function styleFeature(feature) {
+        return {
+          fillColor: getColor(Number(feature.properties.WALK_INDEX)),
+          weight: 1,
+          opacity: 1,
+          color: 'white',
+          dashArray: '3',
+          fillOpacity: 0.8
+        };
+      }
+
+      // Dropdown
+      const select = document.getElementById("atributo");
+
+      // Carregar GeoJSON
+      fetch("meu_mapa.geojson")
+        .then(r => r.json())
+        .then(gj => {
+          const layer = L.geoJSON(gj, {
+            style: styleFeature,
+            onEachFeature: function(feat, lyr) {
+              lyr.on("click", function() {
+                const campo = select.value;
+                const valor = feat.properties[campo];
+                lyr.bindPopup(`<b>${campo}:</b> ${valor !== undefined ? valor : "Sem informação"}`).openPopup();
+              });
+            }
+          }).addTo(map);
+          try { map.fitBounds(layer.getBounds()); } catch(e) {}
+        });
+
+      // --- Legenda fixa para o Índice ---
+      const legend = L.control({ position: 'bottomright' });
+      legend.onAdd = function () {
+        var div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = `
+          <div><b>WALK_INDEX</b></div>
+          <div class="bar">
+            <span class="s1"></span><span class="s2"></span><span class="s3"></span><span class="s4"></span>
+          </div>
+          <div class="ticks">
+            <span>0<br><small>bad</small></span>
+            <span>Q1<br>0.25</span>
+            <span>Q2<br>0.50</span>
+            <span>Q3<br>0.75</span>
+            <span>1<br><small>good</small></span>
+          </div>
+        `;
+        return div;
+      };
+      legend.addTo(map);
+    </script>
+  </body>
+</html>
