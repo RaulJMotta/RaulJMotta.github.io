@@ -5,65 +5,35 @@
     <title>Mapa Teste</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
-      body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-      }
+      html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; }
       #controls {
         padding: 10px;
         background: #f0f0f0;
+        border-bottom: 1px solid #ddd;
       }
-      #map {
-        height: 100%;
-        width: 100%;
-      }
+      #map { height: calc(100vh - 52px); width: 100%; }
+
+      /* Legenda */
       .legend {
-        background: white;
+        background: #fff;
         padding: 10px;
-        line-height: 18px;
-        color: #555;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.2);
+        font-size: 12px;
+        line-height: 1.2;
       }
-      .legend i {
-        width: 30px;
-        height: 15px;
-        float: left;
-        margin-right: 8px;
-        opacity: 0.8;
-      }
+      .legend .bar { height: 14px; width: 260px; display: flex; margin: 6px 0 4px; border-radius: 4px; overflow: hidden; }
+      .legend .bar span { flex: 1; display: block; }
+      .legend .s1 { background:#d73027; } /* Q1 */
+      .legend .s2 { background:#fdae61; } /* Q2 */
+      .legend .s3 { background:#31a354; } /* Q3 */
+      .legend .s4 { background:#006837; } /* Q4 */
+      .legend .ticks { width: 260px; display:flex; justify-content:space-between; }
+      .legend .ticks span { text-align:center; width: 0; transform: translateX(-50%); }
+      .legend small { color:#666; }
     </style>
   </head>
   <body>
-
-    <div id="map"></div>
-
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script>
-      var map = L.map("map").setView([-15.8, -47.9], 4);
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors",
-      }).addTo(map);
-
-      // Função de cores baseada nos valores
-      function getColor(d) {
-        return d > 0.75 ? '#006837' :  // verde escuro
-               d > 0.50 ? '#31a354' :  // verde claro
-               d > 0.25 ? '#fdae61' :  // laranja
-                          '#d73027';   // vermelho
-      }
-
-      // Estilo para cada feição
-      function style(feature) {
-        return {
-          fillColor: getColor(feature.properties.indice),
-          weight: 1,
-          opacity: 1,
-          color: 'white',
-          dashArray: '3',
-          fillOpacity: 0.8
-        };
-      }
-      
     <div id="controls">
       <label for="atributo">Escolha um atributo:</label>
       <select id="atributo">
@@ -77,53 +47,115 @@
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
-      // Criar o mapa
+      // --- Configuração do mapa ---
       var map = L.map("map").setView([-15.8, -47.9], 4);
-
-      // Camada de fundo
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
 
-      // Pega a seleção do dropdown
-      var atributoSelecionado = document.getElementById("atributo");
+      // Cores por quartil
+      function colorFor(value, q) {
+        if (!q || q.length < 5 || !isFinite(value)) return '#ccc';
+        return value > q[3] ? '#006837' :      // Q4
+               value > q[2] ? '#31a354' :      // Q3
+               value > q[1] ? '#fdae61' :      // Q2
+                               '#d73027';      // Q1
+      }
 
-      // Carregar GeoJSON
+      // Percentil com interpolação
+      function computeQuantiles(values) {
+        const arr = values.filter(v => Number.isFinite(v)).sort((a,b)=>a-b);
+        if (arr.length === 0) return [NaN,NaN,NaN,NaN,NaN];
+        const n = arr.length;
+        const pct = (p) => {
+          const pos = (n - 1) * p;
+          const base = Math.floor(pos);
+          const rest = pos - base;
+          return arr[base + 1] !== undefined ? arr[base] + rest * (arr[base+1] - arr[base]) : arr[base];
+        };
+        return [arr[0], pct(0.25), pct(0.5), pct(0.75), arr[n-1]]; // [min,Q1,Q2,Q3,max]
+      }
+
+      function fmt(x) {
+        return (x === undefined || x === null || !isFinite(x)) ? '—' : Number(x).toFixed(3);
+      }
+
+      // Estado global simples
+      const select = document.getElementById('atributo');
+      let currentAttr = select.value;
+      let dataCache = null;
+      let quantiles = null;
+      let layer = null;
+      let legendDiv = null;
+
+      // Legenda Leaflet
+      const legend = L.control({ position: 'bottomright' });
+      legend.onAdd = function() {
+        legendDiv = L.DomUtil.create('div', 'legend');
+        return legendDiv;
+      };
+      legend.addTo(map);
+
+      function updateLegend() {
+        if (!legendDiv || !quantiles) return;
+        const [min, q1, q2, q3, max] = quantiles;
+        legendDiv.innerHTML = `
+          <div><b>${currentAttr}</b></div>
+          <div class="bar">
+            <span class="s1"></span><span class="s2"></span><span class="s3"></span><span class="s4"></span>
+          </div>
+          <div class="ticks">
+            <span>${fmt(min)}<br><small>bad</small></span>
+            <span>Q1<br>${fmt(q1)}</span>
+            <span>Q2<br>${fmt(q2)}</span>
+            <span>Q3<br>${fmt(q3)}</span>
+            <span>${fmt(max)}<br><small>good</small></span>
+          </div>
+        `;
+      }
+
+      function styleFeature(feat) {
+        const v = Number(feat.properties[currentAttr]);
+        return {
+          fillColor: colorFor(v, quantiles),
+          weight: 1,
+          opacity: 1,
+          color: 'white',
+          dashArray: '3',
+          fillOpacity: 0.8
+        };
+      }
+
+      function onEach(feat, lyr) {
+        lyr.on('click', function () {
+          const v = feat.properties[currentAttr];
+          lyr.bindPopup(`<b>${currentAttr}:</b> ${v !== undefined ? v : 'Sem informação'}`).openPopup();
+        });
+      }
+
+      function recomputeAndRedraw() {
+        const values = dataCache.features.map(f => Number(f.properties[currentAttr]));
+        quantiles = computeQuantiles(values);
+        layer.setStyle(styleFeature);
+        updateLegend();
+      }
+
+      // Carrega GeoJSON e inicializa
       fetch("meu_mapa.geojson")
-        .then((res) => res.json())
-        .then((data) => {
-          L.geoJSON(data, {
-            onEachFeature: function (feature, layer) {
-              layer.on("click", function () {
-                let campo = atributoSelecionado.value;
-                let valor = feature.properties[campo] || "Sem informação";
-                layer.bindPopup(
-                  "<b>" + campo + ":</b> " + valor
-                ).openPopup();
-              });
-            },
-          }).addTo(map);
+        .then(r => r.json())
+        .then(gj => {
+          dataCache = gj;
+          quantiles = computeQuantiles(gj.features.map(f => Number(f.properties[currentAttr])));
+          layer = L.geoJSON(gj, { style: styleFeature, onEachFeature: onEach }).addTo(map);
+          try { map.fitBounds(layer.getBounds()); } catch(e) {}
+          updateLegend();
         });
 
-      // Legenda
-      var legend = L.control({position: 'bottomright'});
-
-      legend.onAdd = function (map) {
-        var div = L.DomUtil.create('div', 'legend'),
-            grades = [0, 0.25, 0.50, 0.75, 1],
-            labels = ["Q1", "Q2", "Q3", "Q4"];
-
-        div.innerHTML += "<b>Índice</b><br>";
-        for (var i = 0; i < grades.length - 1; i++) {
-          div.innerHTML +=
-            '<i style="background:' + getColor(grades[i] + 0.01) + '"></i> ' +
-            labels[i] + " (" + grades[i] + " – " + grades[i+1] + ")<br>";
-        }
-        return div;
-      };
-
-      legend.addTo(map);
-      
+      // Troca de atributo
+      select.addEventListener('change', (e) => {
+        currentAttr = e.target.value;
+        if (dataCache && layer) recomputeAndRedraw();
+      });
     </script>
   </body>
 </html>
