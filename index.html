@@ -47,6 +47,11 @@
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
+
+
+      console.log("Valor do índice:", feature.properties.WALK_INDEX);
+
+      
       var map = L.map("map").setView([-15.8, -47.9], 4);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
@@ -63,7 +68,6 @@
       function styleFeature(feature) {
         return {
           fillColor: getColor(Number(feature.properties.WALK_INDEX)),
-          console.log("Valor do índice:", feature.properties.WALK_INDEX);,
           weight: 1,
           opacity: 1,
           color: 'white',
