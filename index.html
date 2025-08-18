@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Mapa com Atributos Selecionáveis</title>
+    <title>Mapa Teste</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
       body {
@@ -14,12 +14,56 @@
         background: #f0f0f0;
       }
       #map {
-        height: 600px;
+        height: 100%;
         width: 100%;
+      }
+      .legend {
+        background: white;
+        padding: 10px;
+        line-height: 18px;
+        color: #555;
+      }
+      .legend i {
+        width: 30px;
+        height: 15px;
+        float: left;
+        margin-right: 8px;
+        opacity: 0.8;
       }
     </style>
   </head>
   <body>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+      var map = L.map("map").setView([-15.8, -47.9], 4);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
+      // Função de cores baseada nos valores
+      function getColor(d) {
+        return d > 0.75 ? '#006837' :  // verde escuro
+               d > 0.50 ? '#31a354' :  // verde claro
+               d > 0.25 ? '#fdae61' :  // laranja
+                          '#d73027';   // vermelho
+      }
+
+      // Estilo para cada feição
+      function style(feature) {
+        return {
+          fillColor: getColor(feature.properties.indice),
+          weight: 1,
+          opacity: 1,
+          color: 'white',
+          dashArray: '3',
+          fillOpacity: 0.8
+        };
+      }
+      
     <div id="controls">
       <label for="atributo">Escolha um atributo:</label>
       <select id="atributo">
@@ -60,6 +104,26 @@
             },
           }).addTo(map);
         });
+
+      // Legenda
+      var legend = L.control({position: 'bottomright'});
+
+      legend.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'legend'),
+            grades = [0, 0.25, 0.50, 0.75, 1],
+            labels = ["Q1", "Q2", "Q3", "Q4"];
+
+        div.innerHTML += "<b>Índice</b><br>";
+        for (var i = 0; i < grades.length - 1; i++) {
+          div.innerHTML +=
+            '<i style="background:' + getColor(grades[i] + 0.01) + '"></i> ' +
+            labels[i] + " (" + grades[i] + " – " + grades[i+1] + ")<br>";
+        }
+        return div;
+      };
+
+      legend.addTo(map);
+      
     </script>
   </body>
 </html>
