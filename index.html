@@ -61,23 +61,12 @@
       }
 
       function styleFeature(feature) {
-        // Pega o valor da propriedade
-        const indexValue = feature.properties.WALK_INDEX;
-
-        // Imprime no console para você ver o que está acontecendo
-        console.log("Propriedade WALK_INDEX:", indexValue, "| Tipo:", typeof indexValue)
         return {
-          fillColor: getColor(Number(feature.properties.WALK_INDEX)),
-          weight: 1,
-          opacity: 1,
-          color: 'white',
-          dashArray: '3',
-          fillOpacity: 0.8
+          color: getColor(Number(feature.properties.WALK_INDEX)), // <-- MUDANÇA PRINCIPAL
+          weight: 3,         // Aumentei a espessura para a linha ficar mais visível
+          opacity: 0.9       // Um pouco de opacidade pode ficar bom
         };
       }
-
-      
-
 
       // Dropdown
       const select = document.getElementById("atributo");
