@@ -63,6 +63,7 @@
       function styleFeature(feature) {
         return {
           fillColor: getColor(Number(feature.properties.WALK_INDEX)),
+          console.log("Valor do índice:", feature.properties.WALK_INDEX);,
           weight: 1,
           opacity: 1,
           color: 'white',
@@ -71,7 +72,7 @@
         };
       }
 
-      console.log("Valor do índice:", feature.properties.WALK_INDEX);
+      
 
 
       // Dropdown
