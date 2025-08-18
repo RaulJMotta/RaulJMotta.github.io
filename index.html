@@ -1,12 +1,36 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="UTF-8">
-    <title>Meu Primeiro Site</title>
-    <link rel="stylesheet" href="style.css">
+    <meta charset="utf-8" />
+    <title>Mapa com Shapefile (GeoJSON)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+      #map {
+        height: 600px;
+        width: 100%;
+      }
+    </style>
   </head>
   <body>
-    <h1>Olá, mundo!</h1>
-    <p>Essa é minha primeira página no GitHub Pages 🚀</p>
+    <h1>Meu Mapa no GitHub Pages</h1>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+      // Criar o mapa centralizado
+      var map = L.map("map").setView([-15.8, -47.9], 4); // Brasil como exemplo
+
+      // Adicionar camada de fundo
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
+      // Carregar o arquivo GeoJSON
+      fetch("meu_mapa.geojson")
+        .then((res) => res.json())
+        .then((data) => {
+          L.geoJSON(data).addTo(map);
+        });
+    </script>
   </body>
 </html>
