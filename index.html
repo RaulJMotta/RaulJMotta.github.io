@@ -54,21 +54,80 @@
         
         /* Estilos da Legenda */
         .legend {
-            background: #fff;
-            padding: 10px;
+            background: white;
+            padding: 10px 15px; /* Adiciona um pouco de padding lateral */
             border-radius: 8px;
             box-shadow: 0 1px 4px rgba(0,0,0,.2);
             font-size: 12px;
-            line-height: 18px;
             color: #555;
+            width: 250px;
         }
-        .legend i {
-            width: 18px;
-            height: 18px;
-            float: left;
-            margin-right: 8px;
-            opacity: 0.9;
-            border-radius: 4px;
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .legend-bar {
+            display: flex;
+            height: 15px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .legend-bar span {
+            flex: 1;
+            display: flex;             /* Ativa o flexbox para o alinhamento */
+            align-items: center;       /* Centraliza verticalmente */
+            justify-content: center;   /* Centraliza horizontalmente */
+            color: white;              /* Cor do texto */
+            font-weight: bold;         /* Deixa o texto em negrito */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5); /* Sombra para legibilidade */
+        }
+        .legend-q1 { background: #d73027; }
+        .legend-q2 { background: #fdae61; }
+        .legend-q3 { background: #91cf60; }
+        .legend-q4 { background: #1a9850; }
+
+        /* --- NOVO MÉTODO DE POSICIONAMENTO --- */
+        .legend-labels {
+            position: relative; /* Cria o contexto para o posicionamento absoluto */
+            height: 35px; /* Espaço para os textos, incluindo "ruim/bom" */
+            margin-top: 5px;
+        }
+        .legend-labels span {
+            position: absolute; /* Posiciona cada texto de forma independente */
+            top: 0;
+            width: 60px; /* Largura para evitar que textos longos se sobreponham */
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        /* Define a posição exata de cada texto */
+        .legend-labels .label-start {
+            left: 0;
+            text-align: left;
+        }
+        .legend-labels .label-q1 {
+            left: 25%;
+            transform: translateX(-50%); /* Centraliza o texto na marca de 25% */
+        }
+        .legend-labels .label-q2 {
+            left: 50%;
+            transform: translateX(-50%); /* Centraliza o texto na marca de 50% */
+        }
+        .legend-labels .label-q3 {
+            left: 75%;
+            transform: translateX(-50%); /* Centraliza o texto na marca de 75% */
+        }
+        .legend-labels .label-end {
+            right: 0; /* Alinha a borda DIREITA do texto à borda DIREITA do container */
+            text-align: right;
+        }
+
+        .legend-labels small {
+            display: block;
+            font-size: 10px;
+            color: #777;
+            margin-top: 2px;
         }
     </style>
 </head>
@@ -76,14 +135,14 @@
 
     <div id="controls">
         <div class="control-group">
-            <label for="city-select">CIDADE</label>
+            <label for="city-select">City</label>
             <select id="city-select">
                 <option value="POA">Porto Alegre</option>
                 <option value="Concepcion">Concepción</option>
             </select>
         </div>
         <div class="control-group">
-            <label for="attribute-select">ATRIBUTO</label>
+            <label for="attribute-select">Attribute</label>
             <select id="attribute-select">
                 </select>
         </div>
@@ -103,6 +162,13 @@
         const citySelector = document.getElementById('city-select');
         const attributeSelector = document.getElementById('attribute-select');
 
+        const attributeMap = {
+        'F0_WI': 'Walkability Index',
+        'F1_DELSIDE': 'Delimited Sidewalks',
+        'F2_SIDEWID': 'Sidewalk Width',
+        'F3_QUALITY': 'Quality of Pavement'
+        };
+
         // --- FUNÇÕES DE LÓGICA DO MAPA ---
 
         /**
@@ -116,32 +182,48 @@
         }
 
         /**
-         * Retorna a cor baseada no valor e nos quartis calculados.
-         */
+        * Retorna a cor baseada no valor e nos quartis calculados (escala "ruim-bom").
+        */
+        
         function getColor(value, breaks) {
-            if (value === undefined || value === null || !breaks.q3) return '#808080'; // Cor para dados nulos
-            return value > breaks.q3 ? '#d73027' :
-                   value > breaks.q2 ? '#fdae61' :
-                   value > breaks.q1 ? '#fee090' :
-                                       '#4575b4';
+            // Se o valor for nulo ou indefinido, retorna preto. Esta é a nova regra.
+            if (value === undefined || value === null) {
+                return '#000000'; // Preto para dados faltantes
+            }
+
+            // Se não houver breaks definidos, retorna uma cor de erro (cinza).
+            if (!breaks || breaks.q3 === undefined) {
+                return '#808080';
+            }
+            
+            // A lógica de cores permanece a mesma, funcionando para qualquer conjunto de breaks.
+            return value <= breaks.q1 ? '#d73027' :  // Q1 (Ruim)
+                value <= breaks.q2 ? '#fdae61' :  // Q2
+                value <= breaks.q3 ? '#91cf60' :  // Q3
+                                        '#1a9850';   // Q4 (Bom)
         }
 
         /**
          * Estiliza as feições baseando-se no atributo selecionado.
          */
+        
         function styleFeature(feature) {
             const selectedAttribute = attributeSelector.value;
+            const props = feature.properties;
+            
             if (selectedAttribute === 'F0_WI') {
-                const value = feature.properties.F0_WI;
+                const value = props.F0_WI;
                 return {
-                    color: getColor(value, quartileBreaks),
+                    color: getColor(value, quartileBreaks), // Usa os quartis dinâmicos
                     weight: 4,
                     opacity: 0.9
                 };
             } else {
-                // Estilo padrão para os outros atributos
+                const value = props[selectedAttribute];
+                // Define os breaks fixos para os outros atributos
+                const fixedBreaks = { q1: 0.25, q2: 0.50, q3: 0.75 };
                 return {
-                    color: '#0078A8', // Um azul padrão
+                    color: getColor(value, fixedBreaks), // Usa os breaks fixos
                     weight: 3,
                     opacity: 0.8
                 };
@@ -151,13 +233,43 @@
         /**
          * Define o conteúdo do popup para cada feição.
          */
+
         function onEachFeature(feature, layer) {
             layer.on('click', function (e) {
-                const selectedAttribute = attributeSelector.value;
+                const selectedAttributeKey = attributeSelector.value;
                 const props = feature.properties;
-                const value = props[selectedAttribute];
                 
-                let content = `<b>${selectedAttribute}:</b><br>${value !== undefined ? value : 'Não disponível'}`;
+                // --- 1. Pega os valores do atributo e do endereço ---
+                const value = props[selectedAttributeKey];
+                const address = props.NMIDELOG; // Pega o endereço do campo NMIDELOG
+
+                const displayName = attributeMap[selectedAttributeKey] || selectedAttributeKey;
+                
+                let formattedValue;
+
+                // Lógica para formatar o valor do atributo (números, nulos, etc.)
+                if (typeof value === 'number' && !isNaN(value)) {
+                    if (selectedAttributeKey === 'F0_WI') {
+                        formattedValue = value.toFixed(3);
+                    } else {
+                        formattedValue = value.toFixed(2);
+                    }
+                } else {
+                    if (value === null || value === undefined) {
+                        formattedValue = 'No Data';
+                    } else {
+                        formattedValue = value;
+                    }
+                }
+                
+                // --- 2. Monta o novo conteúdo do popup ---
+                // Adiciona a linha "Street Name:" no topo.
+                let content = `
+                    <b>Street Name:</b><br>
+                    ${address ? address : 'No Data'}<br><br>
+                    <b>${displayName}:</b><br>
+                    ${formattedValue}
+                `;
                 
                 L.popup()
                     .setLatLng(e.latlng)
@@ -191,8 +303,9 @@
         }
 
         /**
-         * Atualiza ou cria a legenda no mapa.
-         */
+        * Atualiza ou cria a legenda no mapa com estilo de barra horizontal.
+        */
+
         function updateLegend() {
             // Remove a legenda antiga, se existir
             if (legendControl) {
@@ -200,19 +313,46 @@
                 legendControl = null;
             }
 
-            if (attributeSelector.value !== 'F0_WI' || !quartileBreaks.q1) return;
+            const selectedAttributeKey = attributeSelector.value;
+            const selectedAttributeName = attributeMap[selectedAttributeKey] || selectedAttributeKey;
+            
+            let breaks;
+            let title = selectedAttributeName; // O título da legenda será o nome amigável
+
+            // Decide se usa os breaks dinâmicos ou fixos
+            if (selectedAttributeKey === 'F0_WI') {
+                // Se for o Walkability Index, usa os quartis calculados
+                if (!quartileBreaks.q1) return; // Não mostra legenda se não houver dados
+                breaks = quartileBreaks;
+            } else {
+                // Para todos os outros atributos, usa os breaks fixos
+                breaks = { q1: 0.25, q2: 0.50, q3: 0.75 };
+            }
 
             legendControl = L.control({ position: 'bottomright' });
             legendControl.onAdd = function () {
                 var div = L.DomUtil.create('div', 'legend');
-                const b = quartileBreaks;
                 
+                // Formata os números dos breaks com o número de casas decimais apropriado
+                const q1Text = breaks.q1.toFixed(selectedAttributeKey === 'F0_WI' ? 3 : 2);
+                const q2Text = breaks.q2.toFixed(selectedAttributeKey === 'F0_WI' ? 3 : 2);
+                const q3Text = breaks.q3.toFixed(selectedAttributeKey === 'F0_WI' ? 3 : 2);
+
                 div.innerHTML = `
-                    <div><b>Índice F0_WI</b></div>
-                    <i style="background: #4575b4"></i> <= ${b.q1.toFixed(2)}<br>
-                    <i style="background: #fee090"></i> ${b.q1.toFixed(2)} - ${b.q2.toFixed(2)}<br>
-                    <i style="background: #fdae61"></i> ${b.q2.toFixed(2)} - ${b.q3.toFixed(2)}<br>
-                    <i style="background: #d73027"></i> > ${b.q3.toFixed(2)}<br>
+                    <div class="legend-title">${title}</div>
+                    <div class="legend-bar">
+                        <span class="legend-q1">Q1</span>
+                        <span class="legend-q2">Q2</span>
+                        <span class="legend-q3">Q3</span>
+                        <span class="legend-q4">Q4</span>
+                    </div>
+                    <div class="legend-labels">
+                        <span class="label-start">0<small>Bad</small></span>
+                        <span class="label-q1">${q1Text}</span>
+                        <span class="label-q2">${q2Text}</span>
+                        <span class="label-q3">${q3Text}</span>
+                        <span class="label-end">1<small>Good</small></span>
+                    </div>
                 `;
                 return div;
             };
@@ -236,6 +376,11 @@
             // Calcula os quartis para a cidade selecionada ANTES de criar a camada
             quartileBreaks = calculateQuartiles(cityGeoJSON, 'F0_WI');
             
+            // --- ADICIONE ESTA LINHA PARA DEPURAR ---
+            console.log("Quartis calculados para a cidade:", selectedCity, quartileBreaks);
+            // -----------------------------------------
+
+
             // Cria a nova camada GeoJSON com estilo e popups
             geojsonLayer = L.geoJSON(cityGeoJSON, {
                 style: styleFeature,
@@ -262,20 +407,21 @@
                 .then(data => {
                     allData = data;
                     
-                    // Separa os dados por cidade
-                    cityData.POA = { type: "FeatureCollection", features: data.features.filter(f => f.properties.layer.trim() === 'Vias  final  POA') };
+                    // Separa os dados por cidade (mantendo a sua correção de espaços)
+                    cityData.POA = { type: "FeatureCollection", features: data.features.filter(f => f.properties.layer.trim().replace(/\s+/g, ' ') === 'Vias final POA') };
                     cityData.Concepcion = { type: "FeatureCollection", features: data.features.filter(f => f.properties.layer.trim() === 'eje_central_Concepcion') };
                     
-                    // Popula o seletor de atributos (exceto 'layer')
-                    const properties = Object.keys(data.features[0].properties);
-                    const attributesToShow = ['F0_WI', 'F1_DELSIDE', 'F2_SIDEWID', 'F3_QUALITY']; // Adicione outros campos aqui
+                    // --- LÓGICA DO SELETOR ATUALIZADA ---
+                    const attributesToShow = ['F0_WI', 'F1_DELSIDE', 'F2_SIDEWID', 'F3_QUALITY'];
                     
-                    attributesToShow.forEach(prop => {
+                    attributesToShow.forEach(propKey => {
                         const option = document.createElement('option');
-                        option.value = prop;
-                        option.textContent = prop;
+                        option.value = propKey; // O valor interno continua sendo a chave (ex: "F0_WI")
+                        // O texto visível vem do nosso mapa de tradução
+                        option.textContent = attributeMap[propKey] || propKey; 
                         attributeSelector.appendChild(option);
                     });
+                    // ------------------------------------
 
                     // Adiciona os Event Listeners depois que os dados foram carregados
                     citySelector.addEventListener('change', displayCity);
@@ -287,7 +433,7 @@
                         }
                     });
 
-                    // Exibe a cidade padrão (Porto Alegre) ao carregar
+                    // Exibe a cidade padrão ao carregar
                     displayCity();
                 })
                 .catch(error => console.error("Erro ao carregar o GeoJSON:", error));
