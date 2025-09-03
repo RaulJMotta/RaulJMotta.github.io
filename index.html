@@ -263,7 +263,7 @@
                     allData = data;
                     
                     // Separa os dados por cidade
-                    cityData.POA = { type: "FeatureCollection", features: data.features.filter(f => f.properties.layer.trim() === 'Vias final POA') };
+                    cityData.POA = { type: "FeatureCollection", features: data.features.filter(f => f.properties.layer.trim() === 'Vias  final POA') };
                     cityData.Concepcion = { type: "FeatureCollection", features: data.features.filter(f => f.properties.layer.trim() === 'eje_central_Concepcion') };
                     
                     // Popula o seletor de atributos (exceto 'layer')
