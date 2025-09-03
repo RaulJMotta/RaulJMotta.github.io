@@ -1,113 +1,298 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Mapa Teste</title>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-t" />
+    <title>Mapa de Análise de Vias</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <style>
-      html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; }
-      #controls {
-        padding: 10px;
-        background: #f0f0f0;
-        border-bottom: 1px solid #ddd;
-      }
-      #map { height: calc(100vh - 52px); width: 100%; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
 
-      /* Legenda */
-      .legend {
-        background: #fff;
-        padding: 10px;
-        border-radius: 8px;
-        box-shadow: 0 1px 4px rgba(0,0,0,.2);
-        font-size: 12px;
-        line-height: 1.2;
-      }
-      .legend .bar { height: 14px; width: 260px; display: flex; margin: 6px 0 4px; border-radius: 4px; overflow: hidden; }
-      .legend .bar span { flex: 1; display: block; }
-      .legend .s1 { background:#d73027; } /* Q1 */
-      .legend .s2 { background:#fdae61; } /* Q2 */
-      .legend .s3 { background:#31a354; } /* Q3 */
-      .legend .s4 { background:#006837; } /* Q4 */
-      .legend .ticks { width: 260px; display:flex; justify-content:space-between; }
-      .legend .ticks span { text-align:center; width: 0; transform: translateX(-50%); }
-      .legend small { color:#666; }
+        #controls {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .control-group label {
+            font-size: 11px;
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .control-group select {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        
+        /* Estilos da Legenda */
+        .legend {
+            background: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.2);
+            font-size: 12px;
+            line-height: 18px;
+            color: #555;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.9;
+            border-radius: 4px;
+        }
     </style>
-  </head>
-  <body>
+</head>
+<body>
+
     <div id="controls">
-      <label for="atributo">Mostrar no popup:</label>
-      <select id="atributo">
-        <option value="WALK_INDEX">ÍNDICE</option>
-        <option value="NOISE">BARULHO</option>
-        <option value="SPEED">VELOCIDADE</option>
-      </select>
+        <div class="control-group">
+            <label for="city-select">CIDADE</label>
+            <select id="city-select">
+                <option value="POA">Porto Alegre</option>
+                <option value="Concepcion">Concepción</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="attribute-select">ATRIBUTO</label>
+            <select id="attribute-select">
+                </select>
+        </div>
     </div>
 
     <div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
-      var map = L.map("map").setView([-15.8, -47.9], 4);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors",
-      }).addTo(map);
+        // --- VARIÁVEIS GLOBAIS ---
+        let map;
+        let geojsonLayer = null;
+        let legendControl = null;
+        let allData = null; // Armazena todos os dados do GeoJSON
+        let cityData = {}; // Armazena dados separados por cidade
+        let quartileBreaks = {}; // Armazena os quartis calculados para a legenda
 
-      // Função de cor fixa para o índice
-      function getColor(d) {
-        return d > 0.75 ? '#006837' :  // Q4
-               d > 0.50 ? '#31a354' :  // Q3
-               d > 0.25 ? '#fdae61' :  // Q2
-                          '#d73027';   // Q1
-      }
+        const citySelector = document.getElementById('city-select');
+        const attributeSelector = document.getElementById('attribute-select');
 
-      function styleFeature(feature) {
-        return {
-          color: getColor(Number(feature.properties.WALK_INDEX)), // <-- MUDANÇA PRINCIPAL
-          weight: 3,         // Aumentei a espessura para a linha ficar mais visível
-          opacity: 0.9       // Um pouco de opacidade pode ficar bom
-        };
-      }
+        // --- FUNÇÕES DE LÓGICA DO MAPA ---
 
-      // Dropdown
-      const select = document.getElementById("atributo");
+        /**
+         * Inicializa o mapa Leaflet e o tile layer.
+         */
+        function initMap() {
+            map = L.map('map').setView([-22.9, -43.2], 4); // Visão inicial geral
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+        }
 
-      // Carregar GeoJSON
-      fetch("meu_mapa.geojson")
-        .then(r => r.json())
-        .then(gj => {
-          const layer = L.geoJSON(gj, {
-            style: styleFeature,
-            onEachFeature: function(feat, lyr) {
-              lyr.on("click", function() {
-                const campo = select.value;
-                const valor = feat.properties[campo];
-                lyr.bindPopup(`<b>${campo}:</b> ${valor !== undefined ? valor : "Sem informação"}`).openPopup();
-              });
+        /**
+         * Retorna a cor baseada no valor e nos quartis calculados.
+         */
+        function getColor(value, breaks) {
+            if (value === undefined || value === null || !breaks.q3) return '#808080'; // Cor para dados nulos
+            return value > breaks.q3 ? '#d73027' :
+                   value > breaks.q2 ? '#fdae61' :
+                   value > breaks.q1 ? '#fee090' :
+                                       '#4575b4';
+        }
+
+        /**
+         * Estiliza as feições baseando-se no atributo selecionado.
+         */
+        function styleFeature(feature) {
+            const selectedAttribute = attributeSelector.value;
+            if (selectedAttribute === 'F0_WI') {
+                const value = feature.properties.F0_WI;
+                return {
+                    color: getColor(value, quartileBreaks),
+                    weight: 4,
+                    opacity: 0.9
+                };
+            } else {
+                // Estilo padrão para os outros atributos
+                return {
+                    color: '#0078A8', // Um azul padrão
+                    weight: 3,
+                    opacity: 0.8
+                };
             }
-          }).addTo(map);
-          try { map.fitBounds(layer.getBounds()); } catch(e) {}
+        }
+
+        /**
+         * Define o conteúdo do popup para cada feição.
+         */
+        function onEachFeature(feature, layer) {
+            layer.on('click', function (e) {
+                const selectedAttribute = attributeSelector.value;
+                const props = feature.properties;
+                const value = props[selectedAttribute];
+                
+                let content = `<b>${selectedAttribute}:</b><br>${value !== undefined ? value : 'Não disponível'}`;
+                
+                L.popup()
+                    .setLatLng(e.latlng)
+                    .setContent(content)
+                    .openOn(map);
+            });
+        }
+        
+        /**
+         * Calcula os quartis (Q1, Q2, Q3) para a legenda a partir dos dados visíveis.
+         */
+        function calculateQuartiles(data, field) {
+            const values = data.features
+                .map(f => f.properties[field])
+                .filter(v => v !== null && !isNaN(v)) // Filtra nulos e não-números
+                .sort((a, b) => a - b);
+
+            if (values.length < 4) { // Não é possível calcular quartis com poucos dados
+                return { q1: null, q2: null, q3: null };
+            }
+
+            const q1Index = Math.floor(values.length / 4);
+            const q2Index = Math.floor(values.length / 2);
+            const q3Index = Math.floor(values.length * 3 / 4);
+
+            return {
+                q1: values[q1Index],
+                q2: values[q2Index],
+                q3: values[q3Index]
+            };
+        }
+
+        /**
+         * Atualiza ou cria a legenda no mapa.
+         */
+        function updateLegend() {
+            // Remove a legenda antiga, se existir
+            if (legendControl) {
+                map.removeControl(legendControl);
+                legendControl = null;
+            }
+
+            if (attributeSelector.value !== 'F0_WI' || !quartileBreaks.q1) return;
+
+            legendControl = L.control({ position: 'bottomright' });
+            legendControl.onAdd = function () {
+                var div = L.DomUtil.create('div', 'legend');
+                const b = quartileBreaks;
+                
+                div.innerHTML = `
+                    <div><b>Índice F0_WI</b></div>
+                    <i style="background: #4575b4"></i> <= ${b.q1.toFixed(2)}<br>
+                    <i style="background: #fee090"></i> ${b.q1.toFixed(2)} - ${b.q2.toFixed(2)}<br>
+                    <i style="background: #fdae61"></i> ${b.q2.toFixed(2)} - ${b.q3.toFixed(2)}<br>
+                    <i style="background: #d73027"></i> > ${b.q3.toFixed(2)}<br>
+                `;
+                return div;
+            };
+            legendControl.addTo(map);
+        }
+
+        /**
+         * Função principal que filtra, exibe a cidade e atualiza o mapa.
+         */
+        function displayCity() {
+            const selectedCity = citySelector.value;
+            const cityGeoJSON = cityData[selectedCity];
+
+            if (!cityGeoJSON) return;
+
+            // Remove a camada antiga do mapa
+            if (geojsonLayer) {
+                map.removeLayer(geojsonLayer);
+            }
+
+            // Calcula os quartis para a cidade selecionada ANTES de criar a camada
+            quartileBreaks = calculateQuartiles(cityGeoJSON, 'F0_WI');
+            
+            // Cria a nova camada GeoJSON com estilo e popups
+            geojsonLayer = L.geoJSON(cityGeoJSON, {
+                style: styleFeature,
+                onEachFeature: onEachFeature
+            }).addTo(map);
+
+            // Dá zoom nas feições da cidade
+            if (cityGeoJSON.features.length > 0) {
+                map.fitBounds(geojsonLayer.getBounds().pad(0.1));
+            }
+            
+            // Atualiza a legenda
+            updateLegend();
+        }
+
+
+        // --- INICIALIZAÇÃO E CARREGAMENTO DE DADOS ---
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            
+            fetch("meu_mapa.geojson")
+                .then(response => response.json())
+                .then(data => {
+                    allData = data;
+                    
+                    // Separa os dados por cidade
+                    cityData.POA = { type: "FeatureCollection", features: data.features.filter(f => f.properties.layer.trim() === 'Vias final POA') };
+                    cityData.Concepcion = { type: "FeatureCollection", features: data.features.filter(f => f.properties.layer.trim() === 'eje_central_Concepcion') };
+                    
+                    // Popula o seletor de atributos (exceto 'layer')
+                    const properties = Object.keys(data.features[0].properties);
+                    const attributesToShow = ['F0_WI', 'F1_DELSIDE', 'F2_SIDEWID', 'F3_QUALITY']; // Adicione outros campos aqui
+                    
+                    attributesToShow.forEach(prop => {
+                        const option = document.createElement('option');
+                        option.value = prop;
+                        option.textContent = prop;
+                        attributeSelector.appendChild(option);
+                    });
+
+                    // Adiciona os Event Listeners depois que os dados foram carregados
+                    citySelector.addEventListener('change', displayCity);
+                    
+                    attributeSelector.addEventListener('change', () => {
+                        if (geojsonLayer) {
+                            geojsonLayer.setStyle(styleFeature); // Re-aplica o estilo
+                            updateLegend(); // Atualiza a legenda
+                        }
+                    });
+
+                    // Exibe a cidade padrão (Porto Alegre) ao carregar
+                    displayCity();
+                })
+                .catch(error => console.error("Erro ao carregar o GeoJSON:", error));
         });
 
-      // --- Legenda fixa para o Índice ---
-      const legend = L.control({ position: 'bottomright' });
-      legend.onAdd = function () {
-        var div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `
-          <div><b>WALK_INDEX</b></div>
-          <div class="bar">
-            <span class="s1"></span><span class="s2"></span><span class="s3"></span><span class="s4"></span>
-          </div>
-          <div class="ticks">
-            <span>0<br><small>bad</small></span>
-            <span>Q1<br>0.25</span>
-            <span>Q2<br>0.50</span>
-            <span>Q3<br>0.75</span>
-            <span>1<br><small>good</small></span>
-          </div>
-        `;
-        return div;
-      };
-      legend.addTo(map);
     </script>
-  </body>
+</body>
 </html>
